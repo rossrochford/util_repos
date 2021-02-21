@@ -1,0 +1,4 @@
+redis==3.5.3
+trio==0.18.0
+msgpack==1.0.2
+-e /home/ross/code/util_repos/trio_util

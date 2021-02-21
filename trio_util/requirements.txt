@@ -1,0 +1,4 @@
+-e ../redis_util
+trio==0.18.0
+pynng==0.6.2
+msgpack==1.0.2
