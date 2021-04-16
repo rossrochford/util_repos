@@ -20,6 +20,9 @@ def update_many__single_field(db, collection_name, data, field_name):
 def update_many__multi_field(db, collection_name, data):
     updates = []
     for id, result_dict in data.items():
+        result_dict = result_dict.copy()
+        if '_id' in result_dict:
+            del result_dict['_id']  # just in case, avoid updating ids
         for field_name, value in result_dict.items():
             if type(value) in (dict, list):
                 result_dict[field_name] = json.dumps(value)

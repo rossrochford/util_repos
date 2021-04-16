@@ -54,9 +54,9 @@ async def daemon__receive_items_from_redis_queue(worker_groups, queue_name):
 
 
 async def _flush_group(worker_group):
-    print(f"{worker_group.work_types} received flush-group")
+    # print(f"{worker_group.work_types} received flush-group")
     for worker in worker_group.workers:
-        print(f"sending 'flush' to worker: {worker.uid}:{worker.funcname}")
+        # print(f"sending 'flush' to worker: {worker.uid}:{worker.funcname}")
         await worker.send_channel.send('flush')
 
 
@@ -95,7 +95,7 @@ async def daemon__route_items_to_worker_channels(worker_group):
             empty_count += 1
             if empty_count == 10 and worker_group.notify_exhausted:
                 for work_type in worker_group.work_types:
-                    print(f"notify_queue_exhausted: {work_type}")
+                    # print(f"notify_queue_exhausted: {work_type}")
                     await notify_queue_exhausted(
                         redis_cli, work_type, 'twint_events'
                     )

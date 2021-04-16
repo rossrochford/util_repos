@@ -4,6 +4,7 @@ import uuid
 
 import trio
 
+from eliot import start_action  # log_call
 from trio_util.pqueue_workers.pqueue import PriorityQueue
 
 
@@ -88,6 +89,7 @@ class BatchWorker(object):
 
     def __init__(self, worker_config, **kwargs):
         self.uid = uuid.uuid4().hex[:16]
+        self.parent_group = None  # set in parent
 
         self.func = worker_config.func
         self.extra_kwargs = kwargs
@@ -116,6 +118,18 @@ class BatchWorker(object):
     async def preprocess_item(self, item_dict):
         return True, item_dict
 
+    async def _process_batch(self, global_ctx, curr_batch):
+        bf = datetime.datetime.now()
+        action_args = dict(
+            action_type="execute_batch", batch_size=len(curr_batch),
+            work_type=self.parent_group.work_types[0],
+        )
+        with start_action(**action_args):
+            await self.func(self, global_ctx, curr_batch)
+        af = datetime.datetime.now()
+        duration = round((af - bf).total_seconds())
+        print(f"BATCH COMPLETE: {self.uid}.{self.funcname}: {len(curr_batch)} profiles, took {duration}s")
+
     async def worker_loop(self, global_ctx):
 
         print(f"starting worker {self.uid}:{self.funcname}")
@@ -125,31 +139,19 @@ class BatchWorker(object):
         curr_batch = []
         async for msg in self.receive_channel:
             # print(f"{self.uid}:{self.funcname} received msg: {msg} (curr_batch size: {len(curr_batch)})")
-            if msg == 'exit':
+            if msg in ('exit', 'flush') or len(curr_batch) >= self.batch_size:
                 if curr_batch:
-                    print(f'flushing {self.uid}.{self.funcname}')
-                    await self.func(self, global_ctx, curr_batch)
-                self.completion_event.set()
-                break
-            if msg == 'flush':
-                if curr_batch:
-                    print(f'flushing {self.uid}.{self.funcname}')
-                    await self.func(self, global_ctx, curr_batch)
+                    await self._process_batch(global_ctx, curr_batch)
                     curr_batch = []
-                continue
+                if msg == 'flush':
+                    continue
+                elif msg == 'exit':
+                    self.completion_event.set()
+                    break
 
             succ, item = await self.preprocess_item(msg)
             if not succ:
                 continue
             curr_batch.append(item)
-
-            if len(curr_batch) >= self.batch_size:
-                bf = datetime.datetime.now()
-                await self.func(self, global_ctx, curr_batch)
-                af = datetime.datetime.now()
-                duration = round((af - bf).total_seconds())
-                print(f"BATCH COMPLETE: {self.uid}.{self.funcname}: {len(curr_batch)} profiles, took {duration}s")
-
-                curr_batch = []
 
         print(f"worker {self.uid}:{self.funcname} finished")

@@ -4,7 +4,7 @@ from setuptools import setup
 
 setup(
     name="trio-util",
-    version="0.0.01",
+    version="0.0.1",
     author="Ross Rochford",
     author_email="rochford.ross@gmail.com",
     packages=['trio_util', 'trio_util.pqueue_workers', 'trio_util.pynng'],

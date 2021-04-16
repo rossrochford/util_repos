@@ -18,13 +18,17 @@ def find_all(db, collection_name, result_fields=None, batch_size=0):
     return {d['_id'].__str__(): d for d in docs}
 
 
-def find_many(db, collection_name, ids, result_fields=None, batch_size=0):
+def find_many__by_id(db, collection_name, ids, result_fields=None, batch_size=0):
 
     if result_fields and '_id' not in result_fields:
         result_fields.append('_id')
 
+    for pos, id in enumerate(ids):
+        if type(id) is str:
+            ids[pos] = ObjectId(id)
+
     docs = db[collection_name].find(
-        {"_id": {"$in": [ObjectId(i) for i in ids]}},
+        {"_id": {"$in": ids}},
         projection=result_fields, batch_size=batch_size
     )
     return {d['_id'].__str__(): d for d in docs}

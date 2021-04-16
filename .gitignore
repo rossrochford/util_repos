@@ -1,0 +1,8 @@
+.idea/
+__pycache__/
+venv/
+trio_util/venv/
+.build/
+*.egg-info/
+*.tar.gz
+*.zip
