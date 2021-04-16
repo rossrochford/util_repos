@@ -1,8 +1,0 @@
-setup.py
-util_shared/__init__.py
-util_shared/datetime_utils.py
-util_shared/list_utils.py
-util_shared.egg-info/PKG-INFO
-util_shared.egg-info/SOURCES.txt
-util_shared.egg-info/dependency_links.txt
-util_shared.egg-info/top_level.txt
