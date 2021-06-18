@@ -10,6 +10,10 @@ class PriorityQueue(object):
         self._queue = []
         self._counter = 0
 
+    @property
+    def queue_size(self):
+        return len(self._queue)
+
     def put_nowait(self, prio, item):
         heappush(self._queue, (prio, self._counter, item))
         self._counter += 1
@@ -20,12 +24,12 @@ class PriorityQueue(object):
         if not self._not_empty.is_set():
             raise trio.WouldBlock()
 
-        __, __, item = heappop(self._queue)
+        prio, _, item = heappop(self._queue)
 
         if not self._queue:
             self._not_empty = trio.Event()
 
-        return item
+        return prio, item
 
     async def get(self):
         while True:

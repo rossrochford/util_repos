@@ -14,6 +14,7 @@ DEFAULT_PRIORITY = 2
 
 REDIS_HOSTNAME = os.environ.get('REDIS_HOSTNAME', 'localhost')
 REDIS_PORT = os.environ.get('REDIS_PORT', '6379')
+REDIS_EVENT_TOPIC = 'twitter-scraper-events'
 
 
 async def daemon__receive_items_from_redis_queue(worker_groups, queue_name):
@@ -47,7 +48,11 @@ async def daemon__receive_items_from_redis_queue(worker_groups, queue_name):
         priority = int(msg.get('priority', DEFAULT_PRIORITY))
         items = msg.get('items', [])
 
-        print(f"received batch of {len(items)} {work_type} items")
+        num_items = len(items)
+        if items[-1] in ('flush-group', 'exit-all'):
+            num_items -= 1
+
+        print(f"received batch of {num_items} {work_type} items")
 
         for item_dict in items:
             q.put_nowait(priority, item_dict)
@@ -66,17 +71,16 @@ async def _exit_all(worker_group):
         await worker.send_channel.send('exit')
 
 
-async def notify_queue_exhausted(redis_cli, work_type, redis_event_topic):
+async def notify_queue_exhausted(redis_cli, work_type):
     event_msg = {
         'event_uid': uuid.uuid4().hex[:12],
+        'event_type': 'queue-exhausted',
         'event_payload': {
             'work_type': work_type,
-        },
-        'event_type': 'queue-exhausted'
+        }
     }
-    await redis_publish(
-        redis_cli, redis_event_topic, json.dumps(event_msg)
-    )
+    event_msg = json.dumps(event_msg)
+    await redis_publish(redis_cli, REDIS_EVENT_TOPIC, event_msg)
 
 
 async def daemon__route_items_to_worker_channels(worker_group):
@@ -95,10 +99,7 @@ async def daemon__route_items_to_worker_channels(worker_group):
             empty_count += 1
             if empty_count == 10 and worker_group.notify_exhausted:
                 for work_type in worker_group.work_types:
-                    # print(f"notify_queue_exhausted: {work_type}")
-                    await notify_queue_exhausted(
-                        redis_cli, work_type, 'twint_events'
-                    )
+                    await notify_queue_exhausted(redis_cli, work_type)
             await trio.sleep(0.8)
 
             if empty_count == 50:
@@ -113,7 +114,12 @@ async def daemon__route_items_to_worker_channels(worker_group):
             await _flush_group(worker_group)
         else:
             worker = worker_group.choose_worker(item)
-            await worker.send_channel.send(item)
+            try:
+                worker.send_channel.send_nowait(item)
+            except trio.WouldBlock:
+                # retry with a different worker, this time it will block if channel is full
+                worker = worker_group.choose_worker(item, random=True)
+                await worker.send_channel.send(item)
 
 
 async def start_workers_and_daemons(
@@ -132,7 +138,8 @@ async def start_workers_and_daemons(
         )
 
     nursery.start_soon(
-        daemon__receive_items_from_redis_queue, worker_groups, redis_queue_name
+        daemon__receive_items_from_redis_queue,
+        worker_groups, redis_queue_name
     )
 
 
